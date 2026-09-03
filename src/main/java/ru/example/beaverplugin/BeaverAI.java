@@ -4,7 +4,7 @@ import org.bukkit.Location;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.block.Block;
-import org.bukkit.entity.Rabbit;
+import org.bukkit.entity.Pig;
 import org.bukkit.scheduler.BukkitRunnable;
 
 import java.util.concurrent.ThreadLocalRandom;
@@ -19,7 +19,7 @@ public class BeaverAI extends BukkitRunnable {
 
     private final BeaverPlugin plugin;
     private final BeaverManager manager;
-    private final Rabbit beaver;
+    private final Pig beaver;
 
     private State state = State.IDLE;
     private long nextActionAtTick = 0;   // тик сервера, когда можно снова искать дерево
@@ -29,7 +29,7 @@ public class BeaverAI extends BukkitRunnable {
 
     private static final int CHOP_DURATION_TICKS = 60; // 3 секунды на "рубку"
 
-    public BeaverAI(BeaverPlugin plugin, BeaverManager manager, Rabbit beaver) {
+    public BeaverAI(BeaverPlugin plugin, BeaverManager manager, Pig beaver) {
         this.plugin = plugin;
         this.manager = manager;
         this.beaver = beaver;
