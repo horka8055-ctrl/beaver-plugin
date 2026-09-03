@@ -7,6 +7,9 @@ on:
     branches: [ "main", "master" ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -21,7 +24,25 @@ jobs:
           java-version: '21'
 
       - name: Собрать плагин (mvn clean package)
-        run: mvn -B clean package
+        run: mvn -B clean package > build.log 2>&1
+        continue-on-error: true
+        id: build_step
+
+      - name: Сохранить лог сборки в репозиторий (для диагностики)
+        if: always()
+        run: |
+          git config user.name "build-bot"
+          git config user.email "build-bot@example.com"
+          cp build.log last-build.log
+          git add last-build.log
+          git commit -m "build log [skip ci]" || echo "nothing to commit"
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Провалить джобу, если сборка реально упала
+        if: steps.build_step.outcome == 'failure'
+        run: exit 1
 
       - name: Загрузить готовый jar как файл для скачивания
         uses: actions/upload-artifact@v4
