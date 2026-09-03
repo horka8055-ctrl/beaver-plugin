@@ -28,15 +28,20 @@ jobs:
         continue-on-error: true
         id: build_step
 
-      - name: Сохранить лог сборки в репозиторий (для диагностики)
+      - name: Сохранить лог сборки и jar в репозиторий (для диагностики/скачивания)
         if: always()
         run: |
           git config user.name "build-bot"
           git config user.email "build-bot@example.com"
           cp build.log last-build.log
-          git add last-build.log
-          git commit -m "build log [skip ci]" || echo "nothing to commit"
-          git push
+          mkdir -p dist
+          if [ -f target/BeaverPlugin.jar ]; then cp target/BeaverPlugin.jar dist/BeaverPlugin.jar; fi
+          git add last-build.log dist/BeaverPlugin.jar || true
+          git commit -m "build log + jar [skip ci]" || echo "nothing to commit"
+          for i in 1 2 3 4 5; do
+            git pull --rebase && git push && break
+            sleep 3
+          done
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
