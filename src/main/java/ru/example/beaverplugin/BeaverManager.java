@@ -3,10 +3,11 @@ package ru.example.beaverplugin;
 import org.bukkit.Location;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Material;
+import org.bukkit.attribute.Attribute;
 import org.bukkit.entity.Display;
 import org.bukkit.entity.ItemDisplay;
 import org.bukkit.entity.Mob;
-import org.bukkit.entity.Rabbit;
+import org.bukkit.entity.Pig;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
@@ -18,20 +19,21 @@ import org.joml.Vector3f;
  * Управляет "бобрами".
  *
  * АРХИТЕКТУРА ВИЗУАЛА:
- * "Мозг" бобра - невидимый Rabbit (используем его готовый ИИ, Pathfinder,
- * коллизии и физику - сам он не виден).
- * "Тело" бобра - ItemDisplay, посаженный на кролика пассажиром, показывающий
- * предмет с кастомной моделью через ItemMeta#setItemModel (современный способ
- * с 1.21.2+, без числового custom_model_data). Модель - полноценная 3D-
- * геометрия (не плоский спрайт item/generated): пухлое округлое тело ("chonk"),
- * компактная голова, маленькие уши, глаза, нос, фирменные передние зубы,
- * короткие лапы и широкий плоский хвост - см.
- * assets/beaverdam/models/item/beaver.json ресурспака BeaverDamResourcePack.
- * Стилистически модель ориентируется на низкополигональные voxel/Blockbench
- * модели бобра для Minecraft (не является копией конкретного файла).
+ * "Мозг" бобра - невидимый Pig (не Rabbit!). Кролик в ваниле физически не
+ * умеет ходить - прыжки зашиты в его движение на уровне ванильного ИИ и не
+ * отключаются публичным Bukkit API. Свинья ходит обычной походкой без
+ * прыжков, и её скорость можно занизить через Attribute.MOVEMENT_SPEED -
+ * получаем медленную "вперевалку" походку, похожую на бобра.
+ *
+ * "Тело" бобра - ItemDisplay, посаженный на свинью пассажиром, показывающий
+ * предмет с кастомной моделью через ItemMeta#setItemModel (способ с 1.21.2+,
+ * без числового custom_model_data). Базовый предмет - PAPER (а не броня),
+ * чтобы не пересекаться со спец-рендерером цветной кожаной брони, у которого
+ * есть свои слои текстур - это иногда даёт "текстура не найдена" даже при
+ * корректной модели.
  *
  * Ресурспак обязателен на клиенте, иначе игрок увидит стандартный предмет
- * (кожаную попону) вместо бобра - сама механика поведения при этом всё равно работает.
+ * (бумагу) вместо бобра - сама механика поведения при этом всё равно работает.
  */
 public class BeaverManager {
 
@@ -40,6 +42,9 @@ public class BeaverManager {
 
     /** Пространство имён и путь модели в ресурспаке BeaverDamResourcePack. */
     public static final NamespacedKey BEAVER_MODEL_KEY = new NamespacedKey("beaverdam", "beaver");
+
+    /** Насколько медленнее свиньи-бобра ходят (обычная свинья - 0.25). */
+    private static final double BEAVER_MOVEMENT_SPEED = 0.16;
 
     public BeaverManager(BeaverPlugin plugin) {
         this.plugin = plugin;
@@ -59,34 +64,41 @@ public class BeaverManager {
      * на кастомную модель бобра из ресурспака.
      */
     private ItemStack buildBeaverModelItem() {
-        // Базовый предмет не важен визуально (модель полностью его переопределяет).
-        ItemStack item = new ItemStack(Material.LEATHER_HORSE_ARMOR);
+        // PAPER - нейтральный предмет без спец-рендеринга (не броня/не голова),
+        // модель полностью его переопределяет.
+        ItemStack item = new ItemStack(Material.PAPER);
         ItemMeta meta = item.getItemMeta();
         meta.setItemModel(BEAVER_MODEL_KEY);
         item.setItemMeta(meta);
         return item;
     }
 
-    public Rabbit spawnBeaver(Location location) {
+    public Pig spawnBeaver(Location location) {
         // 1. Невидимый "мозг" - используется для ИИ, пути и физики
-        Rabbit brain = location.getWorld().spawn(location, Rabbit.class, r -> {
-            r.setRabbitType(Rabbit.Type.BROWN);
-            r.setAdult();
-            r.setInvisible(true);
-            r.setSilent(true);
-            r.setCustomName("§6Бобёр");
-            r.setCustomNameVisible(false);
-            r.setRemoveWhenFarAway(false);
-            r.getPersistentDataContainer().set(isBeaverKey, PersistentDataType.BYTE, (byte) 1);
+        Pig brain = location.getWorld().spawn(location, Pig.class, p -> {
+            p.setAdult();
+            p.setInvisible(true);
+            p.setSilent(true);
+            p.setCustomName("§6Бобёр");
+            p.setCustomNameVisible(false);
+            p.setRemoveWhenFarAway(false);
+            p.setAI(true); // обычный ИИ ходьбы, без специфики кролика
+
+            var speedAttr = p.getAttribute(Attribute.MOVEMENT_SPEED);
+            if (speedAttr != null) {
+                speedAttr.setBaseValue(BEAVER_MOVEMENT_SPEED);
+            }
+
+            p.getPersistentDataContainer().set(isBeaverKey, PersistentDataType.BYTE, (byte) 1);
         });
 
-        // 2. Видимая "модель" - ItemDisplay с кастомной геометрией, катается на кролике
+        // 2. Видимая "модель" - ItemDisplay с кастомной геометрией, катается на свинье
         ItemDisplay model = location.getWorld().spawn(location, ItemDisplay.class, d -> {
             d.setItemStack(buildBeaverModelItem());
             d.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.FIXED);
             d.setBillboard(Display.Billboard.FIXED);
 
-            // Масштаб и позиция модели относительно "мозга"-кролика.
+            // Масштаб и позиция модели относительно "мозга"-свиньи.
             // Модель спроектирована в единицах 0-16 (как блок) с центром
             // приблизительно в (8,0,8) по X/Z, поэтому сдвигаем её на -0.5 по X/Z.
             Transformation transformation = new Transformation(
