@@ -1,0 +1,12 @@
+name: BeaverPlugin
+version: '1.0.0'
+main: ru.example.beaverplugin.BeaverPlugin
+api-version: '1.21'
+author: YouAndClaude
+description: Добавляет моба-бобра, плотину на реках и поведение "срубить дерево / съесть бревно"
+
+commands:
+  beaver:
+    description: Команды плагина BeaverPlugin
+    usage: /beaver spawn | /beaver dam
+    permission: beaverplugin.admin
