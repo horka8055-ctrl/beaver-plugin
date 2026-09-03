@@ -96,7 +96,7 @@ public class BeaverAI extends BukkitRunnable {
 
             case CHOPPING -> {
                 // визуальный эффект "рубки" во время ожидания
-                beaver.getWorld().spawnParticle(Particle.BLOCK_CRACK, beaver.getLocation().add(0, 0.5, 0),
+                beaver.getWorld().spawnParticle(Particle.BLOCK, beaver.getLocation().add(0, 0.5, 0),
                         6, 0.2, 0.2, 0.2, targetLogLocation != null
                                 ? targetLogLocation.getBlock().getBlockData()
                                 : org.bukkit.Material.OAK_LOG.createBlockData());
@@ -116,7 +116,7 @@ public class BeaverAI extends BukkitRunnable {
             if (felled > 0) {
                 // "поедание" последнего бревна - эффект и звук
                 beaver.getWorld().playSound(beaver.getLocation(), Sound.ENTITY_GENERIC_EAT, 1f, 1f);
-                beaver.getWorld().spawnParticle(Particle.VILLAGER_HAPPY, beaver.getLocation().add(0, 0.6, 0), 8);
+                beaver.getWorld().spawnParticle(Particle.HAPPY_VILLAGER, beaver.getLocation().add(0, 0.6, 0), 8);
             }
         }
 
