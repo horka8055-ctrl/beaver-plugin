@@ -5,6 +5,7 @@ import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
+import ru.example.beaverplugin.listeners.BeaverLootListener;
 import ru.example.beaverplugin.listeners.DamGenerator;
 
 public final class BeaverPlugin extends JavaPlugin {
@@ -24,6 +25,7 @@ public final class BeaverPlugin extends JavaPlugin {
         this.damGenerator = new DamGenerator(this, beaverManager);
 
         getServer().getPluginManager().registerEvents(damGenerator, this);
+        getServer().getPluginManager().registerEvents(new BeaverLootListener(beaverManager), this);
 
         getLogger().info("BeaverPlugin включен. Бобры вышли на охоту за деревьями.");
     }
