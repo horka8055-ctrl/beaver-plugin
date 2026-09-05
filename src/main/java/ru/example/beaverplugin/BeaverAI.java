@@ -44,6 +44,14 @@ public class BeaverAI extends BukkitRunnable {
     private static final int CHOP_DURATION_TICKS = 60; // 3 секунды на "рубку"
     private static final double MOVE_EPSILON = 0.003;   // порог горизонтального смещения за тик, чтобы считать "идёт"
 
+    /**
+     * Подстройка модели по высоте относительно ног "мозга"-свиньи.
+     * Значение подобрано "на глаз" без возможности визуально протестировать
+     * в реальном клиенте - если модель всё ещё видна вкопанной в землю или
+     * наоборот парит, поменяйте это число (в блоках) и пересоберите.
+     */
+    private static final double VERTICAL_OFFSET = 0.35;
+
     public BeaverAI(BeaverPlugin plugin, BeaverManager manager, Pig beaver) {
         this.plugin = plugin;
         this.manager = manager;
@@ -131,8 +139,12 @@ public class BeaverAI extends BukkitRunnable {
             bobY = 0; // тело замирает, кивает только голова
         }
 
-        float yaw = loc.getYaw();
-        Location displayLoc = new Location(loc.getWorld(), loc.getX(), loc.getY(), loc.getZ(), yaw, 0f);
+        // У Display-сущностей yaw=0 по умолчанию смотрит на СЕВЕР, а у обычных
+        // мобов (в т.ч. нашего "мозга"-свиньи) yaw=0 - это ЮГ. Без поправки
+        // на 180° модель разворачивается задом наперёд относительно
+        // направления движения.
+        float yaw = loc.getYaw() + 180f;
+        Location displayLoc = new Location(loc.getWorld(), loc.getX(), loc.getY() + VERTICAL_OFFSET, loc.getZ(), yaw, 0f);
 
         visual.body().teleport(displayLoc);
         visual.body().setTransformation(new Transformation(
