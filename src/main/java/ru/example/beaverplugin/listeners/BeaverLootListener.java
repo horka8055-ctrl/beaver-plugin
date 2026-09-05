@@ -34,7 +34,7 @@ public class BeaverLootListener implements Listener {
         int amount = ThreadLocalRandom.current().nextInt(1, 3); // 1-2 бревна
         event.getDrops().add(new ItemStack(Material.OAK_LOG, amount));
 
-        // Убираем ItemDisplay-"тело", иначе оно останется висеть в воздухе
-        mob.getPassengers().forEach(org.bukkit.entity.Entity::remove);
+        // Убираем визуал (тело+голову), иначе они останутся висеть в воздухе
+        beaverManager.removeVisual(mob.getUniqueId());
     }
 }
