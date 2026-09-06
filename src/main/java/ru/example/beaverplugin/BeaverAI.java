@@ -106,7 +106,12 @@ public class BeaverAI extends BukkitRunnable {
             return;
         }
 
-        updateVisual();
+        try {
+            updateVisual();
+        } catch (Exception e) {
+            plugin.getLogger().log(java.util.logging.Level.WARNING,
+                    "Ошибка обновления визуала бобра " + beaver.getUniqueId() + ": " + e, e);
+        }
 
         animTick++;
         if (animTick % 20 == 0) {
