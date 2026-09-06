@@ -5,7 +5,6 @@ import org.bukkit.NamespacedKey;
 import org.bukkit.Material;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.entity.Display;
-import org.bukkit.entity.Entity;
 import org.bukkit.entity.ItemDisplay;
 import org.bukkit.entity.Mob;
 import org.bukkit.entity.Pig;
@@ -26,28 +25,36 @@ import java.util.concurrent.ConcurrentHashMap;
  * АРХИТЕКТУРА ВИЗУАЛА:
  * "Мозг" бобра - невидимый Pig (ИИ, Pathfinder, коллизии, физика).
  *
- * "Тело" бобра - ДВЕ отдельные ItemDisplay-сущности (не пассажиры!):
- *  - body  - туловище, лапы, хвост (models/item/beaver_body.json)
- *  - head  - голова, уши, глаза, нос, зубы (models/item/beaver_head.json)
- * Раздельные сущности нужны, чтобы голову можно было отдельно покачивать/
- * кивать при "рубке" дерева, не трогая туловище.
+ * "Тело" бобра - СЕМЬ отдельных ItemDisplay-сущностей (не пассажиры!),
+ * по числу частей модели, разрезанной из файла пользователя (bobr.json):
+ * голова, туловище, хвост и 4 лапы (перед-лево/право, зад-лево/право).
+ * Раздельные сущности - единственный способ получить реальное движение
+ * "костей" в ванильном Minecraft без модов: сервер каждый тик сам
+ * пересчитывает положение и поворот каждой части (BeaverAI).
+ *
+ * Координаты каждой модели части (models/item/beaver_<part>.json) уже
+ * пересчитаны так, чтобы локальный ноль (0,0,0) совпадал с точкой крепления
+ * этой части к телу (бедро для лап, шея для головы, основание для хвоста) -
+ * это позволяет поворачивать часть вокруг ЕЁ РЕАЛЬНОГО сустава, а не вокруг
+ * общего центра модели.
  *
  * ПОЧЕМУ НЕ PASSENGER: посадка пассажиром привязывает модель к фиксированной
- * точке "в седле" на спине моба (для свиньи - это высоко над землёй), из-за
- * чего модель визуально "парит" в воздухе. Вместо этого BeaverAI каждый тик
- * вручную телепортирует обе ItemDisplay-сущности на позицию "мозга" и сам
- * считает анимацию (покачивание при ходьбе/плавании, кивок при кусании).
- *
- * Ресурспак обязателен на клиенте, иначе игрок увидит стандартный предмет
- * (бумагу) вместо бобра - сама механика поведения при этом всё равно работает.
+ * точке "в седле" на спине моба, из-за чего модель визуально "парит" в
+ * воздухе. Вместо этого BeaverAI каждый тик вручную телепортирует все семь
+ * ItemDisplay-сущностей на позицию "мозга" (с индивидуальным смещением под
+ * точку крепления каждой части).
  */
 public class BeaverManager {
 
-    /** Хранит ссылки на визуальные сущности одного бобра. */
-    public record BeaverVisual(ItemDisplay body, ItemDisplay head) {
+    /** Хранит ссылки на все семь визуальных частей одного бобра. */
+    public record BeaverVisual(
+            ItemDisplay head, ItemDisplay body, ItemDisplay tail,
+            ItemDisplay legFL, ItemDisplay legFR, ItemDisplay legBL, ItemDisplay legBR
+    ) {
         public void remove() {
-            if (body.isValid()) body.remove();
-            if (head.isValid()) head.remove();
+            for (ItemDisplay d : new ItemDisplay[]{head, body, tail, legFL, legFR, legBL, legBR}) {
+                if (d.isValid()) d.remove();
+            }
         }
     }
 
@@ -55,8 +62,13 @@ public class BeaverManager {
     private final NamespacedKey isBeaverKey;
     private final Map<UUID, BeaverVisual> visuals = new ConcurrentHashMap<>();
 
-    public static final NamespacedKey BODY_MODEL_KEY = new NamespacedKey("beaverdam", "beaver_body");
-    public static final NamespacedKey HEAD_MODEL_KEY = new NamespacedKey("beaverdam", "beaver_head");
+    public static final NamespacedKey HEAD_MODEL_KEY   = new NamespacedKey("beaverdam", "beaver_head");
+    public static final NamespacedKey BODY_MODEL_KEY   = new NamespacedKey("beaverdam", "beaver_body");
+    public static final NamespacedKey TAIL_MODEL_KEY   = new NamespacedKey("beaverdam", "beaver_tail");
+    public static final NamespacedKey LEG_FL_MODEL_KEY = new NamespacedKey("beaverdam", "beaver_leg_fl");
+    public static final NamespacedKey LEG_FR_MODEL_KEY = new NamespacedKey("beaverdam", "beaver_leg_fr");
+    public static final NamespacedKey LEG_BL_MODEL_KEY = new NamespacedKey("beaverdam", "beaver_leg_bl");
+    public static final NamespacedKey LEG_BR_MODEL_KEY = new NamespacedKey("beaverdam", "beaver_leg_br");
 
     /** Насколько медленнее свиньи-бобра ходят (обычная свинья - 0.25). */
     private static final double BEAVER_MOVEMENT_SPEED = 0.16;
@@ -81,7 +93,7 @@ public class BeaverManager {
         return visuals.get(brainId);
     }
 
-    /** Убирает обе визуальные сущности бобра и забывает про него. */
+    /** Убирает все семь визуальных частей бобра и забывает про него. */
     public void removeVisual(UUID brainId) {
         BeaverVisual visual = visuals.remove(brainId);
         if (visual != null) {
@@ -106,14 +118,13 @@ public class BeaverManager {
             d.setBillboard(Display.Billboard.FIXED);
             d.setTransformation(identityTransform());
             // Плавная интерполяция между кадрами телепорта/трансформации,
-            // иначе покачивание будет дёрганым.
+            // иначе анимация будет дёрганой.
             d.setInterpolationDuration(3);
             d.setTeleportDuration(3);
             d.getPersistentDataContainer().set(isBeaverKey, PersistentDataType.BYTE, (byte) 1);
         });
     }
 
-    /** Базовая трансформация: центрируем модель (координаты 0-16) и чуть увеличиваем. */
     public static Transformation identityTransform() {
         return new Transformation(
                 new Vector3f(-0.5f, 0f, -0.5f),
@@ -146,10 +157,17 @@ public class BeaverManager {
             p.getPersistentDataContainer().set(isBeaverKey, PersistentDataType.BYTE, (byte) 1);
         });
 
-        // 2. Видимые части - создаются отдельно, НЕ как пассажиры (см. комментарий класса)
-        ItemDisplay body = spawnPart(location, BODY_MODEL_KEY);
-        ItemDisplay head = spawnPart(location, HEAD_MODEL_KEY);
-        visuals.put(brain.getUniqueId(), new BeaverVisual(body, head));
+        // 2. Семь видимых частей - создаются отдельно, НЕ как пассажиры
+        BeaverVisual visual = new BeaverVisual(
+                spawnPart(location, HEAD_MODEL_KEY),
+                spawnPart(location, BODY_MODEL_KEY),
+                spawnPart(location, TAIL_MODEL_KEY),
+                spawnPart(location, LEG_FL_MODEL_KEY),
+                spawnPart(location, LEG_FR_MODEL_KEY),
+                spawnPart(location, LEG_BL_MODEL_KEY),
+                spawnPart(location, LEG_BR_MODEL_KEY)
+        );
+        visuals.put(brain.getUniqueId(), visual);
 
         // Запускаем персональный ИИ-цикл этого бобра (управляет "мозгом" и визуалом)
         new BeaverAI(plugin, this, brain).runTaskTimer(plugin, 1L, 1L);
